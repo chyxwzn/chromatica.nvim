@@ -21,6 +21,7 @@ from clang import cindex
 import os
 import re
 import time
+import subprocess as sp
 
 class Chromatica(logger.LoggingMixin):
 
@@ -107,6 +108,8 @@ class Chromatica(logger.LoggingMixin):
         if not Chromatica.is_supported_filetype(filetype): return False
 
         args = self.args_db.get_args_filename_ft(filename, filetype)
+        if len(args) > 0 and (args[0] == "cc" or args[0] == "c++"):
+            args.pop(0)
         self.debug("filename: %s" % filename)
         self.debug("args: %s" % " ".join(args))
 
@@ -114,44 +117,57 @@ class Chromatica(logger.LoggingMixin):
         self.ctx[filename]["filetype"] = filetype
         self.ctx[filename]["buffer"] = buffer
         self.ctx[filename]["args"] = args
+        if os.path.splitext(filename)[1] != ".h":
+            ast_file = os.path.expanduser("~/.ast/") + os.path.basename(
+                self.ctx[filename]["buffer"].name) + ".ast"
+            ast_args = ['clang', '-emit-ast', '-o', ast_file]
+            if self.ctx[filename]["args"]:
+                args.extend(self.ctx[filename]["args"])
+            ast_args.append(self.ctx[filename]["buffer"].name)
+            self.ctx[filename]["ast_args"] = ast_args
+            self.ctx[filename]["ast_file"] = ast_file
+        else:
+            self.ctx[filename]["ast_args"] = []
+            self.ctx[filename]["ast_file"] = ""
 
         return True
 
     def parse(self, context):
-        ret = False
         # check if context is already in ctx db
         filename = context["filename"]
-        if filename not in self.ctx:
-            if not self._init_context(context): return ret
+        if not self._init_context(context): return False
 
-            self.profiler.start("parse index.parse")
-            try:
+        if len(self.ctx[filename]["args"]) == 0 and os.path.splitext(filename)[1] != ".h":
+            self.__vim.call("chromatica#init#buffer_fallback")
+            return False
+
+        self.profiler.start("parse index.parse")
+        try:
+            if self.ctx[filename]["ast_args"]:
+                sp.run(self.ctx[filename]["ast_args"])
+                tu = self.idx.read(self.ctx[filename]["ast_file"])
+            else:
                 tu = self.idx.parse(self.ctx[filename]["buffer"].name,
                                     self.ctx[filename]["args"], \
                                     self.get_unsaved_buffer(filename), \
                                     options=self.parse_options)
-            except cindex.TranslationUnitLoadError as e:
-                self.ctx[filename]["error"] = "clang.cindex.TranslationUnitLoadError(%s)" % str(e)
-                self.__vim.call("chromatica#init#buffer_fallback")
-                return ret
+        except cindex.TranslationUnitLoadError as e:
+            self.ctx[filename][
+                "error"] = "clang.cindex.TranslationUnitLoadError(%s)" % str(
+                    e)
+            self.__vim.call("chromatica#init#buffer_fallback")
+            return False
 
-            self.profiler.stop()
+        self.profiler.stop()
 
-            if not tu:
-                self.error("Cannot generate Translation Unit for %s" % context)
-                return ret
+        if not tu:
+            self.error("Cannot generate Translation Unit for %s" % context)
+            return False
 
-            self.ctx[filename]["tu"] = tu
+        self.ctx[filename]["tu"] = tu
+        self.highlight(context)  # update highlight on entire file
 
-            ret = True
-
-        else:
-            ret = self._reparse(context)
-
-        if ret:
-            self.highlight(context) # update highlight on entire file
-
-        return ret
+        return True
 
     def _reparse(self, context):
         filename = context["filename"]
@@ -281,5 +297,6 @@ class Chromatica(logger.LoggingMixin):
                 self.args_db.get_args_filename_ft(context["filename"], \
                 self.__vim.current.buffer.options["filetype"])))
         util.echo(self.__vim, ".clang File Search Path: %s" % self.clangfile_search_path)
+        util.echo(self.__vim, "ast file: %s" % self.ctx[filename]["ast_file"])
         if "error" in self.ctx[filename]:
             util.echo(self.__vim, "Error Message: %s" % self.ctx[filename]["error"])

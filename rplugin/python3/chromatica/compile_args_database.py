@@ -10,7 +10,7 @@ import re
 log = logger.logging.getLogger("chromatica.compile_args")
 
 DEFAULT_STD={"c"   : ["-std=c11"], \
-             "cpp" : ["-std=c++14"]}
+             "cpp" : ["-std=c++17"]}
 
 def set_default_std(stds):
     DEFAULT_STD = stds
@@ -66,7 +66,7 @@ class CompileArgsDatabase(object):
         if self.__clang_file == None:
             return
         # read .clang file
-        fp = open(self.__clang_file)
+        fp = open(self.__clang_file, "r")
         lines = fp.readlines()
         fp.close()
 
