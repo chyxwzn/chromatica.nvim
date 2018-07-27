@@ -21,6 +21,7 @@ hi default link chromaticaDeclRefExprCall Type
 hi default link chromaticaMemberRefExprCall Member
 hi default link chromaticaMemberRefExprVar Member
 hi default link chromaticaTemplateNoneTypeParameter Identifier
+hi default link chromaticaMacroDefinition Macro
 
 hi default link chromaticaStructDecl Type
 hi default link chromaticaUnionDecl Type
