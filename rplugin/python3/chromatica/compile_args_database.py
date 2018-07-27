@@ -93,29 +93,37 @@ class CompileArgsDatabase(object):
         res = []
         ret = self.cdb.getCompileCommands(filename)
         _basename = os.path.basename(filename)
+        include_flags = ["-isystem", "-include"]
         log.info("Read cdb for: %s" % filename)
         if ret:
-            for cmds in ret:
-                cwd = cmds.directory
-                skip = 0
-                for arg in cmds.arguments:
-                    if skip and arg[0] != "-":
-                        skip = 0
-                        continue
-                    if arg == "-o" or arg == "-c":
-                        skip = 1
-                        continue
+            cmd = ret[0]
+            cwd = cmds.directory
+            skip = False
+            arguments = list(cmds.arguments)
+            for (i, arg) in enumerate(arguments):
+                if skip:
+                    skip = False
+                    continue
 
-                    if arg.startswith('-I'):
-                        include_path = arg[2:]
-                        if not os.path.isabs(include_path):
-                            include_path = os.path.normpath(
-                                os.path.join(cwd, include_path))
-                        res.append('-I' + include_path)
-                    if _basename in arg:
-                        continue;
-                    else:
-                        res.append(arg)
+                if arg.startswith('-I'):
+                    include_path = arg[2:]
+                    if not os.path.isabs(include_path):
+                        include_path = os.path.normpath(
+                            os.path.join(cwd, include_path))
+                    res.append('-I' + include_path)
+                    continue
+                if arg in include_flags:
+                    include_path = arguments[i + 1]
+                    if not os.path.isabs(include_path):
+                        include_path = os.path.normpath(
+                            os.path.join(cwd, include_path))
+                    res.extend([arg, include_path])
+                    skip = True
+                    continue
+                if _basename in arg:
+                    continue;
+                else:
+                    res.append(arg)
         else:
             print("Cannot find compile flags for %s in compilation database" % filename)
         return res
