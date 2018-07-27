@@ -108,8 +108,6 @@ class Chromatica(logger.LoggingMixin):
         if not Chromatica.is_supported_filetype(filetype): return False
 
         args = self.args_db.get_args_filename_ft(filename, filetype)
-        if len(args) > 0 and (args[0] == "cc" or args[0] == "c++"):
-            args.pop(0)
         self.debug("filename: %s" % filename)
         self.debug("args: %s" % " ".join(args))
 
@@ -121,14 +119,18 @@ class Chromatica(logger.LoggingMixin):
             ast_file = os.path.expanduser("~/.ast/") + os.path.basename(
                 self.ctx[filename]["buffer"].name) + ".ast"
             ast_args = ['clang', '-emit-ast', '-o', ast_file]
-            if self.ctx[filename]["args"]:
-                args.extend(self.ctx[filename]["args"])
-            ast_args.append(self.ctx[filename]["buffer"].name)
+            if len(args) > 0:
+                if len(args) > 1 and (args[0] == "cc" or args[0] == "c++"):
+                    ast_args.extend(args[1:])
+                else:
+                    ast_args.extend(args)
+            ast_args.append(filename)
             self.ctx[filename]["ast_args"] = ast_args
             self.ctx[filename]["ast_file"] = ast_file
         else:
             self.ctx[filename]["ast_args"] = []
             self.ctx[filename]["ast_file"] = ""
+        self.debug("ast args: %s" % " ".join(self.ctx[filename]["ast_args"]))
 
         return True
 
@@ -145,6 +147,7 @@ class Chromatica(logger.LoggingMixin):
         try:
             if self.ctx[filename]["ast_args"]:
                 sp.run(self.ctx[filename]["ast_args"])
+            if os.path.exists(self.ctx[filename]["ast_file"]):
                 tu = self.idx.read(self.ctx[filename]["ast_file"])
             else:
                 tu = self.idx.parse(self.ctx[filename]["buffer"].name,
@@ -152,9 +155,7 @@ class Chromatica(logger.LoggingMixin):
                                     self.get_unsaved_buffer(filename), \
                                     options=self.parse_options)
         except cindex.TranslationUnitLoadError as e:
-            self.ctx[filename][
-                "error"] = "clang.cindex.TranslationUnitLoadError(%s)" % str(
-                    e)
+            self.ctx[filename]["error"] = "clang.cindex.TranslationUnitLoadError(%s)" % str(e)
             self.__vim.call("chromatica#init#buffer_fallback")
             return False
 
