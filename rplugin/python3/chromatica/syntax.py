@@ -322,7 +322,7 @@ def _get_default_syn(tu, token, cursor):
     elif cursor.kind.is_reference():
         return "chromaticaRef"
     else:
-        return None
+        return "chromaticaMacroDefinition"
 
 def _get_identifier_syn(tu, token, cursor):
     group = _get_default_syn(tu, token, cursor)
