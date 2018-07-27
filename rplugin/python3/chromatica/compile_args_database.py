@@ -97,9 +97,9 @@ class CompileArgsDatabase(object):
         log.info("Read cdb for: %s" % filename)
         if ret:
             cmd = ret[0]
-            cwd = cmds.directory
+            cwd = cmd.directory
             skip = False
-            arguments = list(cmds.arguments)
+            arguments = list(cmd.arguments)
             for (i, arg) in enumerate(arguments):
                 if skip:
                     skip = False
